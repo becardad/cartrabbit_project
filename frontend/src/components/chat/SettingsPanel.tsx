@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ArrowLeft, Moon, Sun, Type, Timer, Palette, LogOut, ChevronRight, User, Camera, Pencil, Shield, MessageSquare, Bell, Monitor, HelpCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowLeft, Moon, Sun, Type, Timer, Palette, LogOut, ChevronRight, User, Camera, Pencil, Shield, MessageSquare, Bell, Monitor, HelpCircle, Ban, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -23,13 +23,15 @@ const DISAPPEAR_OPTIONS = [
 
 export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { user, updateUser } = useAuth();
-  const [view, setView] = useState<"menu" | "profile" | "appearance" | "chat">("menu");
+  const [view, setView] = useState<"menu" | "profile" | "appearance" | "chat" | "account">("menu");
   const [textSize, setTextSize] = useState(user?.settings?.textSize || 16);
   const [disappearTime, setDisappearTime] = useState(user?.settings?.disappearTime || 0);
   const [isDark, setIsDark] = useState(user?.settings?.theme === "dark");
   const [profileName, setProfileName] = useState(user?.name || "");
   const [profileBio, setProfileBio] = useState(user?.bio || "Available");
   const [editingProfile, setEditingProfile] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
+  const [loadingBlocked, setLoadingBlocked] = useState(false);
   
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -99,7 +101,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     : "U";
 
   const menuItems = [
-    { icon: User, label: "Account", onClick: () => toast.info("Coming soon") },
+    { icon: User, label: "Account", onClick: () => { setView("account"); fetchBlockedUsers(); } },
     { icon: Shield, label: "Privacy", onClick: () => toast.info("Coming soon") },
     { icon: MessageSquare, label: "Chats", onClick: () => setView("chat") },
     { icon: Bell, label: "Notifications", onClick: () => toast.info("Coming soon") },
@@ -107,6 +109,26 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     { icon: Monitor, label: "Keyboard shortcuts", onClick: () => toast.info("Coming soon") },
     { icon: HelpCircle, label: "Help", onClick: () => toast.info("Coming soon") },
   ];
+
+  const fetchBlockedUsers = async () => {
+    setLoadingBlocked(true);
+    try {
+      const res = await api.get('/chat/blocked');
+      setBlockedUsers(res.data);
+    } catch { /* ignore */ } finally {
+      setLoadingBlocked(false);
+    }
+  };
+
+  const handleUnblock = async (userId: string) => {
+    try {
+      await api.put(`/chat/unblock/${userId}`);
+      setBlockedUsers(prev => prev.filter(u => (u._id || u.id) !== userId));
+      toast.success('User unblocked');
+    } catch {
+      toast.error('Failed to unblock user');
+    }
+  };
 
   if (selectedImage) {
     return (
@@ -133,6 +155,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           {view === "profile" && "Profile"}
           {view === "appearance" && "Personalization"}
           {view === "chat" && "Chat"}
+          {view === "account" && "Account"}
         </h2>
       </div>
 
@@ -341,6 +364,50 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+        {view === "account" && (
+          <div className="px-5 py-4 space-y-4 animate-fade-in-right">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Blocked Accounts</p>
+              {loadingBlocked ? (
+                <div className="flex justify-center py-8">
+                  <div className="h-5 w-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                </div>
+              ) : blockedUsers.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-3 text-muted-foreground">
+                  <Ban className="h-10 w-10 text-muted-foreground/30" />
+                  <p className="text-sm">No blocked accounts</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {blockedUsers.map((u: any) => {
+                    const id = u._id || u.id;
+                    return (
+                      <div key={id} className="flex items-center gap-3 py-3 border-b border-border/40">
+                        {u.profilePicture ? (
+                          <img src={u.profilePicture} alt="" className="h-10 w-10 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <div className="h-10 w-10 rounded-full bg-primary/15 flex items-center justify-center text-primary font-bold shrink-0">
+                            {u.name?.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">{u.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{u.bio || ""}</p>
+                        </div>
+                        <button
+                          onClick={() => handleUnblock(id)}
+                          className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold text-primary border border-primary/30 hover:bg-primary/10 transition-colors active:scale-95"
+                        >
+                          Unblock
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}

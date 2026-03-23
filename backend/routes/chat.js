@@ -21,7 +21,7 @@ const authMiddleware = (req, res, next) => {
 module.exports = (io) => {
   const router = express.Router();
 
-  // Get all users (except current)
+  // Get all users (except current) - used for search only
   router.get('/users', authMiddleware, async (req, res) => {
     try {
       const users = await User.find({ _id: { $ne: req.user } }).select('-password');
@@ -30,6 +30,122 @@ module.exports = (io) => {
       console.error(err.message);
       res.status(500).send('Server Error');
     }
+  });
+
+  // Search users by name (for new chat) — excludes blocked users and users who blocked us
+  router.get('/search', authMiddleware, async (req, res) => {
+    try {
+      const q = req.query.q || '';
+      const me = await User.findById(req.user).select('blocked');
+      const blockedIds = (me?.blocked || []).map(id => id.toString());
+      const users = await User.find({
+        _id: { $ne: req.user, $nin: blockedIds },
+        blocked: { $ne: req.user },
+        name: { $regex: q, $options: 'i' }
+      }).select('-password').limit(20);
+      res.json(users);
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send('Server Error');
+    }
+  });
+
+  // Get only conversations — excludes blocked users
+  router.get('/conversations', authMiddleware, async (req, res) => {
+    try {
+      const me = await User.findById(req.user).select('blocked');
+      const blockedIds = new Set((me?.blocked || []).map(id => id.toString()));
+
+      const messages = await Message.find({
+        $or: [{ senderId: req.user }, { receiverId: req.user }]
+      }).sort({ createdAt: -1 }).lean();
+
+      const convMap = new Map();
+      const unreadMap = new Map();
+
+      for (const msg of messages) {
+        const isFromOther = msg.senderId.toString() !== req.user.toString();
+        const otherId = isFromOther ? msg.senderId.toString() : msg.receiverId.toString();
+
+        if (!blockedIds.has(otherId)) {
+          if (!convMap.has(otherId)) {
+            convMap.set(otherId, msg);
+          }
+          if (isFromOther && msg.status !== 'read') {
+            unreadMap.set(otherId, (unreadMap.get(otherId) || 0) + 1);
+          }
+        }
+      }
+
+      const contactIds = Array.from(convMap.keys());
+      const users = await User.find({ _id: { $in: contactIds } }).select('-password').lean();
+
+      const conversations = users.map(u => ({
+        user: u,
+        lastMessage: convMap.get(u._id.toString()),
+        unread: unreadMap.get(u._id.toString()) || 0
+      }));
+
+      res.json(conversations);
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send('Server Error');
+    }
+  });
+
+  // Check if this is the first message between two users
+  router.get('/first-message/:userId', authMiddleware, async (req, res) => {
+    try {
+      const count = await Message.countDocuments({
+        $or: [
+          { senderId: req.params.userId, receiverId: req.user },
+          { senderId: req.user, receiverId: req.params.userId }
+        ]
+      });
+      res.json({ isFirst: count === 0 });
+    } catch (err) {
+      res.status(500).send('Server Error');
+    }
+  });
+
+  // Block a user and delete all message history between them
+  router.put('/block/:id', authMiddleware, async (req, res) => {
+    try {
+      const user = await User.findById(req.user);
+      const blockId = req.params.id;
+      if (!user.blocked.some(id => id.toString() === blockId)) {
+        user.blocked.push(blockId);
+        await user.save();
+      }
+      
+      // Fully delete the conversation from DB so it resets to a new chat upon unblock
+      await Message.deleteMany({
+        $or: [
+          { senderId: req.user, receiverId: blockId },
+          { senderId: blockId, receiverId: req.user }
+        ]
+      });
+
+      res.json({ success: true, blocked: user.blocked });
+    } catch (err) { res.status(500).send('Server Error'); }
+  });
+
+  // Unblock a user
+  router.put('/unblock/:id', authMiddleware, async (req, res) => {
+    try {
+      const user = await User.findById(req.user);
+      user.blocked = user.blocked.filter(id => id.toString() !== req.params.id);
+      await user.save();
+      res.json({ success: true, blocked: user.blocked });
+    } catch (err) { res.status(500).send('Server Error'); }
+  });
+
+  // Get blocked users list (with details)
+  router.get('/blocked', authMiddleware, async (req, res) => {
+    try {
+      const user = await User.findById(req.user).populate('blocked', 'name profilePicture bio');
+      res.json(user.blocked || []);
+    } catch (err) { res.status(500).send('Server Error'); }
   });
 
   // Update own profile
@@ -83,6 +199,19 @@ module.exports = (io) => {
   // Send a message
   router.post('/messages/:userId', authMiddleware, async (req, res) => {
     try {
+      // Check if blocked by either party
+      const me = await User.findById(req.user);
+      const them = await User.findById(req.params.userId);
+      
+      if (!me || !them) return res.status(404).json({ msg: 'User not found' });
+      
+      const meBlockedThem = me.blocked && me.blocked.some(id => id.toString() === req.params.userId);
+      const themBlockedMe = them.blocked && them.blocked.some(id => id.toString() === req.user.toString());
+      
+      if (meBlockedThem || themBlockedMe) {
+        return res.status(403).json({ msg: 'Cannot send message to this user' });
+      }
+
       const { text, type, imageUrl, viewOnce } = req.body;
       const newMessage = new Message({
         senderId: req.user,
@@ -135,6 +264,22 @@ module.exports = (io) => {
       message.imageUrl = "";
       await message.save();
       res.json(message);
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send('Server Error');
+    }
+  });
+
+  // Clear or Delete an entire conversation with a specific user
+  router.delete('/conversations/:userId', authMiddleware, async (req, res) => {
+    try {
+      await Message.deleteMany({
+        $or: [
+          { senderId: req.user, receiverId: req.params.userId },
+          { senderId: req.params.userId, receiverId: req.user }
+        ]
+      });
+      res.json({ success: true, msg: 'Conversation deleted' });
     } catch (err) {
       console.error(err.message);
       res.status(500).send('Server Error');

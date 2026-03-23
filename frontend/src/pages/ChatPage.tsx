@@ -54,48 +54,52 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchConversations = async () => {
       try {
-        const [userRes, groupRes] = await Promise.all([
-          api.get('/chat/users'),
+        const [convRes, groupRes] = await Promise.all([
+          api.get('/chat/conversations'),
           api.get('/chat/groups')
         ]);
-        const users: User[] = userRes.data;
-        const groupsData = groupRes.data;
-        
-        const userChats: Chat[] = users.map(u => ({
-          user: { ...u, id: (u as any)._id, online: onlineUserIds.includes((u as any)._id) },
-          messages: [],
-          lastMessage: "Start a conversation",
-          lastMessageTime: "",
-          unread: 0,
-        }));
 
-        const groupChats: Chat[] = groupsData.map((g: any) => {
+        // convRes.data = [{ user, lastMessage }]
+        const userChats: Chat[] = convRes.data.map((conv: any) => {
+          const u = conv.user;
+          const last = conv.lastMessage;
+          return {
+            user: { ...u, id: u._id, online: onlineUserIds.includes(u._id) },
+            messages: [],
+            lastMessage: last?.text ? decryptMessage(last.text) : (last?.type === 'image' ? '📷 Photo' : last?.type === 'voice' ? '🎙️ Voice note' : last?.type === 'document' ? '📎 Media' : 'Start chatting'),
+            lastMessageTime: last ? new Date(last.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '',
+            unread: 0,
+          };
+        });
+
+        const groupChats: Chat[] = groupRes.data.map((g: any) => {
           if (socket.connected) socket.emit('join_group', g._id);
           return {
-            user: { 
-              id: g._id, 
-              name: g.name, 
-              online: true, 
-              avatar: "", 
-              bio: `${g.members.length} members`, 
-              profilePicture: g.profilePicture || "https://ui-avatars.com/api/?name=" + encodeURIComponent(g.name) + "&background=random"
+            user: {
+              id: g._id,
+              name: g.name,
+              online: true,
+              avatar: '',
+              bio: `${g.members.length} members`,
+              profilePicture: g.profilePicture || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(g.name) + '&background=random'
             },
             messages: [],
-            lastMessage: "Start chatting in this group",
-            lastMessageTime: "",
+            lastMessage: 'Start chatting in this group',
+            lastMessageTime: '',
             unread: 0,
           };
         });
 
         setAllChats([...userChats, ...groupChats]);
       } catch (err) {
-        console.error("Failed to fetch chats", err);
+        console.error('Failed to fetch conversations', err);
       } finally {
         setLoading(false);
       }
     };
+
     const fetchSyncData = async () => {
       try {
         const [starredRes, callsRes] = await Promise.all([
@@ -105,23 +109,23 @@ export default function ChatPage() {
         
         setStarredMessages(starredRes.data.map((m: any) => ({
           msg: { ...m, id: m._id },
-          chatName: m.senderId?.name || "Unknown"
+          chatName: m.senderId?.name || 'Unknown'
         })));
         setStarredIds(new Set(starredRes.data.map((m: any) => m._id)));
         setCallLogs(callsRes.data.map((c: any) => ({
           id: c._id,
           user: (c.caller._id === user?.id ? c.receiver : c.caller) as any,
           type: c.type,
-          direction: c.caller._id === user?.id ? "outgoing" : "incoming",
+          direction: c.caller._id === user?.id ? 'outgoing' : 'incoming',
           status: c.status,
           time: new Date(c.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
         })));
       } catch (err) {
-        console.error("Failed to fetch sync data", err);
+        console.error('Failed to fetch sync data', err);
       }
     };
 
-    fetchUsers();
+    fetchConversations();
     fetchSyncData();
   }, [user?.id]);
 
@@ -326,6 +330,20 @@ export default function ChatPage() {
     }
   };
 
+  // Add a searched user to the chat list temporarily (they stay after first message via socket)
+  const handleAddChat = (newUser: User) => {
+    setAllChats(prev => {
+      if (prev.some(c => c.user.id === newUser.id)) return prev;
+      return [{
+        user: { ...newUser, id: newUser.id, online: onlineUserIds.includes(newUser.id) },
+        messages: [],
+        lastMessage: 'Start a conversation',
+        lastMessageTime: '',
+        unread: 0,
+      }, ...prev];
+    });
+  };
+
   return (
     <div className="h-screen flex bg-background overflow-hidden font-sans">
       {/* Far Left Nav Rail - Desktop & Tablet */}
@@ -368,6 +386,7 @@ export default function ChatPage() {
               onOpenStatus={() => handleTabChange("status")}
               onOpenStarred={() => handleTabChange("starred")}
               onCreateGroup={handleCreateGroup}
+              onAddChat={handleAddChat}
             />
           )}
         </div>
@@ -395,6 +414,8 @@ export default function ChatPage() {
                 onStartCall={(type) => setActiveCall({ user: activeChat.user, type })}
                 favoriteIds={favoriteIds}
                 onToggleFavorite={handleToggleFavorite}
+                onBlockUser={(id) => setAllChats(prev => prev.filter(c => c.user.id !== id))}
+                onDeleteChat={(id) => setAllChats(prev => prev.filter(c => c.user.id !== id))}
               />
             </div>
           ) : (

@@ -75,7 +75,7 @@ export default function SideNav({ activeTab, onTabChange, unreadCount }: SideNav
           label="Chats" 
           active={activeTab === "chats"} 
           onClick={() => onTabChange("chats")}
-          badge={unreadCount ? unreadCount : undefined} 
+          badge={activeTab === "chats" ? undefined : (unreadCount || undefined)} 
         />
         <NavItem 
           icon={Phone} 
@@ -129,7 +129,6 @@ export default function SideNav({ activeTab, onTabChange, unreadCount }: SideNav
             <UserAvatar 
                name={user?.name || "User"} 
                profilePicture={user?.profilePicture} 
-               online 
                size="sm"
             />
             <div className="absolute left-[calc(100%+16px)] px-2 py-1 rounded bg-[#233138] text-white text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 translate-x-[-10px] group-hover:translate-x-0 transition-all pointer-events-none shadow-lg z-50">

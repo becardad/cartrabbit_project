@@ -12,6 +12,7 @@ const UserSchema = new mongoose.Schema({
   favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   archived: [{ type: String }],
   pinned: [{ type: String }],
+  blocked: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   chatBackgrounds: { type: Map, of: String, default: {} },
   settings: {
     theme: { type: String, default: 'dark' },

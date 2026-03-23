@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Check, CheckCheck, Play, Mic, CornerUpRight, Image as ImageIcon, Star, Ban, Trash2, Pencil, Forward, Lock } from "lucide-react";
+import { Check, CheckCheck, Play, Mic, CornerUpRight, Image as ImageIcon, Star, Ban, Trash2, Pencil, Forward, Lock, File, Download } from "lucide-react";
 import type { Message } from "@/data/mockData";
 import { useState } from "react";
 
@@ -75,7 +75,7 @@ export default function MessageBubble({ message, isMine, index, isStarred, onTog
         >
           {/* Image message */}
           {message.type === "image" && message.imageUrl && (
-            <div className="relative rounded-xl overflow-hidden mb-1.5 shadow-inner">
+            <div className="relative rounded-xl overflow-hidden mb-1.5 shadow-inner bg-black">
               {!imgLoaded && (
                 <div className="w-[260px] h-[180px] bg-muted/30 animate-pulse rounded-xl flex items-center justify-center">
                   <ImageIcon className="h-7 w-7 text-muted-foreground/30" />
@@ -85,13 +85,41 @@ export default function MessageBubble({ message, isMine, index, isStarred, onTog
                 src={message.imageUrl}
                 alt="Shared image"
                 className={cn(
-                  "w-[260px] h-[180px] object-cover rounded-xl transition-all duration-500 group-hover/msg:scale-105",
+                  "w-[260px] max-h-[300px] object-cover rounded-xl transition-all duration-500 group-hover/msg:scale-105",
                   imgLoaded ? "opacity-100" : "opacity-0 absolute"
                 )}
                 onLoad={() => setImgLoaded(true)}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
             </div>
+          )}
+
+          {/* Video message */}
+          {message.type === "video" && message.imageUrl && (
+            <div className="relative rounded-xl overflow-hidden mb-1.5 shadow-inner bg-black">
+              <video
+                src={message.imageUrl}
+                controls
+                className="w-[260px] max-h-[300px] rounded-xl"
+              />
+            </div>
+          )}
+
+          {/* Document message */}
+          {message.type === "document" && message.imageUrl && (
+            <a href={message.imageUrl} target="_blank" rel="noreferrer" className={cn(
+              "flex items-center gap-3 p-3 rounded-xl transition-colors mb-1.5 border",
+              isMine ? "bg-white/10 hover:bg-white/20 border-white/20" : "bg-secondary/50 hover:bg-secondary/70 border-border/50"
+            )}>
+              <div className={cn("h-10 w-10 rounded-lg flex items-center justify-center shrink-0", isMine ? "bg-white/20" : "bg-primary/10")}>
+                <File className={cn("h-5 w-5", isMine ? "text-white" : "text-primary")} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={cn("text-sm font-semibold truncate", isMine ? "text-white" : "text-foreground")}>{message.fileName || "Document"}</p>
+                <p className={cn("text-[10px] mt-0.5", isMine ? "text-white/70" : "text-muted-foreground")}>{message.fileSize || "Unknown size"}</p>
+              </div>
+              <Download className={cn("h-4 w-4 shrink-0", isMine ? "text-white/70" : "text-muted-foreground")} />
+            </a>
           )}
 
           {/* Voice message */}

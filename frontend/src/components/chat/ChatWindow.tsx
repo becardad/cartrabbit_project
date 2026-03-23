@@ -11,6 +11,7 @@ import DateSeparator from "./DateSeparator";
 import ProfileViewer from "./ProfileViewer";
 import ViewOnceMedia from "./ViewOnceMedia";
 import ChatBackgroundPicker from "./ChatBackgroundPicker";
+import MessageRequestBanner from "./MessageRequestBanner";
 import type { Chat, Message } from "@/data/mockData";
 import { useAuth } from "@/hooks/useAuth";
 import api from "@/lib/api";
@@ -41,9 +42,11 @@ interface ChatWindowProps {
   onStartCall?: (type: "voice" | "video") => void;
   favoriteIds?: Set<string>;
   onToggleFavorite?: (chatId: string) => void;
+  onBlockUser?: (userId: string) => void;
+  onDeleteChat?: (userId: string) => void;
 }
 
-export default function ChatWindow({ chat, onBack, textSize = 16, starredIds, onToggleStar, onCallLogged, onStartCall, favoriteIds, onToggleFavorite }: ChatWindowProps) {
+export default function ChatWindow({ chat, onBack, textSize = 16, starredIds, onToggleStar, onCallLogged, onStartCall, favoriteIds, onToggleFavorite, onBlockUser, onDeleteChat }: ChatWindowProps) {
   const { user, updateUser } = useAuth();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -76,8 +79,10 @@ export default function ChatWindow({ chat, onBack, textSize = 16, starredIds, on
   const [viewOnceMode, setViewOnceMode] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editingMsg, setEditingMsg] = useState<Message | null>(null);
+  const [isMessageRequest, setIsMessageRequest] = useState<boolean | null>(null); // null = loading
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadTypeRef = useRef<"media" | "document">("media");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -118,7 +123,30 @@ export default function ChatWindow({ chat, onBack, textSize = 16, starredIds, on
     setShowProfile(false);
     setShowMenu(false);
     setIsTypingRemote(false);
+    setIsMessageRequest(null);
+
+    // Check if this is a first-time message (only relevant if we have existing messages to receive)
+    api.get(`/chat/first-message/${chat.user.id}`)
+      .then(res => {
+        // Only show request banner if there ARE incoming messages (i.e. sender sent us something but we haven't replied)
+        // We rely on messages loaded above — if messages exist and all are from them, it's a request
+        setIsMessageRequest(res.data.isFirst === false ? null : null); // Will refine below after messages load
+      })
+      .catch(() => setIsMessageRequest(null));
   }, [chat.user.id, user]);
+
+  // After messages load, determine if this is a pending request
+  // A "request" = messages exist, all are from the other person (we never replied), and it's a group chat or DM
+  useEffect(() => {
+    if (messages.length === 0) { setIsMessageRequest(false); return; }
+    const hasReplied = messages.some(m => m.senderId === 'me');
+    const hasIncoming = messages.some(m => m.senderId !== 'me' && m.senderId !== 'system');
+    if (!hasReplied && hasIncoming) {
+      setIsMessageRequest(true);
+    } else {
+      setIsMessageRequest(false);
+    }
+  }, [messages.length]);
 
   useEffect(() => {
     const messageListener = (msg: any) => {
@@ -362,8 +390,16 @@ export default function ChatWindow({ chat, onBack, textSize = 16, starredIds, on
     setShowAttach(false);
 
     const tempId = `file-${Date.now()}`;
-    const fileType = file.type.startsWith('image/') || file.type.startsWith('video/') ? 'image' : 'document';
-    const tempUrl = fileType === 'image' ? URL.createObjectURL(file) : "";
+    const isDocRequest = uploadTypeRef.current === "document";
+    
+    let fileType = "document";
+    if (!isDocRequest) {
+      if (file.type.startsWith('image/')) fileType = 'image';
+      else if (file.type.startsWith('video/')) fileType = 'video';
+      else fileType = 'document'; // Fallback if they select a random file in the media picker
+    }
+
+    const tempUrl = URL.createObjectURL(file);
     
     const tempMsg: Message = {
       id: tempId,
@@ -480,8 +516,8 @@ export default function ChatWindow({ chat, onBack, textSize = 16, starredIds, on
   const emojis = ["😊", "😂", "❤️", "👍", "🔥", "🎉", "😎", "🤔", "💯", "✨", "👋", "🙌", "🥰", "😤", "🫡", "💀", "🥲", "😈", "🤝", "💪", "🎯", "⚡", "🌟", "🫶"];
 
   const attachOptions = [
-    { icon: ImageIcon, label: "Photo", color: "text-amber-500", action: () => { if(fileInputRef.current) { fileInputRef.current.accept = "image/*,video/*"; fileInputRef.current.click(); } } },
-    { icon: File, label: "Document", color: "text-sky-500", action: () => { if(fileInputRef.current) { fileInputRef.current.accept = "*/*"; fileInputRef.current.click(); } } },
+    { icon: ImageIcon, label: "Photo / Video", color: "text-amber-500", action: () => { if(fileInputRef.current) { uploadTypeRef.current = "media"; fileInputRef.current.accept = "image/*,video/*"; fileInputRef.current.click(); } } },
+    { icon: File, label: "Document", color: "text-sky-500", action: () => { if(fileInputRef.current) { uploadTypeRef.current = "document"; fileInputRef.current.accept = "*/*"; fileInputRef.current.click(); } } },
     { icon: MapPin, label: "Location", color: "text-teal-500", action: () => toast.info("Location sharing — requires backend") },
     { icon: Eye, label: "View Once", color: "text-primary", action: () => handleSendViewOnce() },
   ];
@@ -505,6 +541,59 @@ export default function ChatWindow({ chat, onBack, textSize = 16, starredIds, on
       socket.emit('send_message', newMsg);
     } catch (err) {
       console.error("Failed to log call start");
+    }
+  };
+
+
+
+  const handleBlockUser = async () => {
+    try {
+      await api.put(`/chat/block/${chat.user.id}`);
+      toast.success(`${chat.user.name} has been blocked`);
+      setShowMenu(false);
+      onBlockUser?.(chat.user.id);
+      if (onBack) onBack();
+    } catch {
+      toast.error('Failed to block user');
+    }
+  };
+
+  const handleClearChat = async () => {
+    try {
+      await api.delete(`/chat/conversations/${chat.user.id}`);
+      setMessages([]);
+      toast.success("Chat cleared");
+      setShowMenu(false);
+    } catch {
+      toast.error("Failed to clear chat");
+    }
+  };
+
+  const handleDeleteChat = async () => {
+    try {
+      await api.delete(`/chat/conversations/${chat.user.id}`);
+      toast.success("Chat deleted");
+      setShowMenu(false);
+      onDeleteChat?.(chat.user.id);
+      if (onBack) onBack();
+    } catch {
+      toast.error("Failed to delete chat");
+    }
+  };
+
+  const handleAcceptRequest = () => {
+    setIsMessageRequest(false);
+    toast.success(`You can now chat with ${chat.user.name}`);
+  };
+
+  const handleBlockRequest = async () => {
+    try {
+      await api.put(`/chat/block/${chat.user.id}`);
+      toast.success(`${chat.user.name} has been blocked`);
+      onBlockUser?.(chat.user.id);
+      if (onBack) onBack();
+    } catch {
+      toast.error('Failed to block user');
     }
   };
 
@@ -589,8 +678,9 @@ export default function ChatWindow({ chat, onBack, textSize = 16, starredIds, on
                 <MenuButton label="Export Chat" icon={<Download className="h-3.5 w-3.5" />} onClick={handleExportChat} />
                 <MenuButton label="Wallpaper" icon={<Wallpaper className="h-3.5 w-3.5" />} onClick={() => { setShowBgPicker(true); setShowMenu(false); }} />
                 <MenuButton label="Mute Notifications" onClick={() => { toast.success("Notifications muted"); setShowMenu(false); }} />
-                <MenuButton label="Block User" icon={<Ban className="h-3.5 w-3.5" />} onClick={() => { toast.success(`${chat.user.name} blocked`); setShowMenu(false); }} destructive />
-                <MenuButton label="Delete Chat" icon={<Trash2 className="h-3.5 w-3.5" />} onClick={() => { toast.success("Chat deleted"); setShowMenu(false); if (onBack) onBack(); }} destructive />
+                <MenuButton label="Clear Chat" icon={<Trash2 className="h-3.5 w-3.5" />} onClick={handleClearChat} destructive />
+                <MenuButton label="Delete Chat" icon={<Trash2 className="h-3.5 w-3.5" />} onClick={handleDeleteChat} destructive />
+                <MenuButton label="Block User" icon={<Ban className="h-3.5 w-3.5" />} onClick={handleBlockUser} destructive />
               </div>
             </>
           )}
@@ -616,6 +706,15 @@ export default function ChatWindow({ chat, onBack, textSize = 16, starredIds, on
             )}
           </div>
         </div>
+      )}
+
+      {/* Message Request Banner */}
+      {isMessageRequest && (
+        <MessageRequestBanner
+          sender={chat.user}
+          onAccept={handleAcceptRequest}
+          onBlock={handleBlockRequest}
+        />
       )}
 
       {/* Messages */}

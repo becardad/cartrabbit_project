@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Search, MessageCircle, X, Pin, PinOff, BellOff, Archive, Plus, Settings, ArrowLeft, CircleDot, Star, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import UserAvatar from "./UserAvatar";
 import NewGroupDialog from "./NewGroupDialog";
 import TextNestLogo from "../TextNestLogo";
 import type { Chat, User } from "@/data/mockData";
+import api from "@/lib/api";
 
 interface ChatSidebarProps {
   chats: Chat[];
@@ -21,17 +22,21 @@ interface ChatSidebarProps {
   onTogglePin: (chatId: string) => void;
   favoriteIds: Set<string>;
   onToggleFavorite: (chatId: string) => void;
+  onAddChat?: (user: User) => void; // called when a brand-new user is selected from search
 }
 
 type Tab = "all" | "favorites" | "unread" | "groups";
 
-export default function ChatSidebar({ chats, activeChatId, onSelectChat, onOpenSettings, onOpenStatus, onOpenStarred, onCreateGroup, isArchivedView, archivedIds, onToggleArchive, pinnedIds, onTogglePin, favoriteIds, onToggleFavorite }: ChatSidebarProps) {
+export default function ChatSidebar({ chats, activeChatId, onSelectChat, onOpenSettings, onOpenStatus, onOpenStarred, onCreateGroup, isArchivedView, archivedIds, onToggleArchive, pinnedIds, onTogglePin, favoriteIds, onToggleFavorite, onAddChat }: ChatSidebarProps) {
   const [search, setSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [contextMenu, setContextMenu] = useState<{ chatId: string; x: number; y: number } | null>(null);
   const [localChats, setLocalChats] = useState(chats);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync localChats when parent chats prop changes
   useEffect(() => {
@@ -49,12 +54,39 @@ export default function ChatSidebar({ chats, activeChatId, onSelectChat, onOpenS
     });
   }, [chats]);
 
-  const filtered = localChats.filter((c) =>
-    c.user.name.toLowerCase().includes(search.toLowerCase())
-  );
+  // Search backend when query changes
+  useEffect(() => {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (!search.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+    setIsSearching(true);
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const res = await api.get(`/chat/search?q=${encodeURIComponent(search.trim())}`);
+        setSearchResults(res.data);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+  }, [search]);
 
-  const archivedChats = filtered.filter((c) => archivedIds.has(c.user.id));
-  const activeChats = filtered.filter((c) => !archivedIds.has(c.user.id));
+  // Clear search when going back to all chats (e.g. after deleting/blocking a user)
+  useEffect(() => {
+    if (!activeChatId) {
+      setSearch("");
+      setSearchResults([]);
+      setIsSearching(false);
+    }
+  }, [activeChatId]);
+
+  // When search is active, show backend results; otherwise show local chats
+  const archivedChats = localChats.filter((c) => archivedIds.has(c.user.id));
+  const activeChats = localChats.filter((c) => !archivedIds.has(c.user.id));
   const pinnedChats = activeChats.filter((c) => pinnedIds.has(c.user.id) && (activeTab !== "all" || !favoriteIds.has(c.user.id)));
   const unpinnedChats = activeChats.filter((c) => !pinnedIds.has(c.user.id) && (activeTab !== "all" || !favoriteIds.has(c.user.id)));
   const onlineChats = activeChats.filter((c) => c.user.online && (activeTab !== "all" || !favoriteIds.has(c.user.id)));
@@ -71,7 +103,7 @@ export default function ChatSidebar({ chats, activeChatId, onSelectChat, onOpenS
 
   const tabs: { id: Tab; label: string; count?: number; icon?: React.ReactNode }[] = [
     { id: "all", label: "All" },
-    { id: "favorites", label: "Favorites" },
+    { id: "favorites", label: "Favorites", count: activeChats.filter(c => favoriteIds.has(c.user.id) && c.unread > 0).reduce((sum, c) => sum + c.unread, 0) },
     { id: "unread", label: "Unread", count: activeChats.filter(c => c.unread > 0).length },
     { id: "groups", label: "Groups" },
   ];
@@ -127,7 +159,7 @@ export default function ChatSidebar({ chats, activeChatId, onSelectChat, onOpenS
         <div className="flex items-center justify-between mt-1 gap-3">
           <p className={cn(
             "text-[13.5px] truncate leading-tight tracking-tight",
-            chat.unread > 0 ? "text-foreground font-bold" : "text-muted-foreground underline-offset-4 decoration-primary/30 group-hover:text-foreground/80"
+            chat.unread > 0 && activeChatId !== chat.user.id ? "text-foreground font-bold" : "text-muted-foreground underline-offset-4 decoration-primary/30 group-hover:text-foreground/80"
           )}>
             {chat.typing ? (
               <span className="text-primary font-black italic animate-pulse-soft">typing…</span>
@@ -135,7 +167,7 @@ export default function ChatSidebar({ chats, activeChatId, onSelectChat, onOpenS
               chat.lastMessage
             )}
           </p>
-          {chat.unread > 0 && (
+          {chat.unread > 0 && activeChatId !== chat.user.id && (
             <span className="shrink-0 h-5 min-w-5 px-1.5 rounded-full gradient-primary text-white text-[10px] font-black flex items-center justify-center shadow-lg shadow-primary/40 ring-2 ring-background">
               {chat.unread}
             </span>
@@ -292,15 +324,22 @@ export default function ChatSidebar({ chats, activeChatId, onSelectChat, onOpenS
                 className="flex flex-col items-center gap-1.5 group animate-fade-in shrink-0"
                 style={{ animationDelay: `${i * 80}ms`, animationFillMode: "backwards" }}
               >
-                <div className={cn(
-                  "rounded-full p-[2.5px] transition-all duration-700 shadow-sm",
-                  activeChatId === chat.user.id
-                    ? "bg-gradient-to-br from-[hsl(16,65%,52%)] to-[hsl(24,70%,46%)] ring-2 ring-primary/10"
-                    : "bg-border/30 group-hover:bg-gradient-to-br group-hover:from-[hsl(16,65%,52%,0.4)] group-hover:to-[hsl(24,70%,46%,0.4)]"
-                )}>
-                  <div className="bg-card rounded-full p-0.5">
-                    <UserAvatar name={chat.user.name} online size="md" profilePicture={chat.user.profilePicture} />
+                <div className="relative">
+                  <div className={cn(
+                    "rounded-full p-[2.5px] transition-all duration-700 shadow-sm",
+                    activeChatId === chat.user.id
+                      ? "bg-gradient-to-br from-[hsl(16,65%,52%)] to-[hsl(24,70%,46%)] ring-2 ring-primary/10"
+                      : "bg-border/30 group-hover:bg-gradient-to-br group-hover:from-[hsl(16,65%,52%,0.4)] group-hover:to-[hsl(24,70%,46%,0.4)]"
+                  )}>
+                    <div className="bg-card rounded-full p-0.5">
+                      <UserAvatar name={chat.user.name} online size="md" profilePicture={chat.user.profilePicture} />
+                    </div>
                   </div>
+                  {chat.unread > 0 && (
+                    <span className="absolute -top-1 -right-1 h-4.5 min-w-[18px] px-1 rounded-full gradient-primary text-white text-[9px] font-black flex items-center justify-center shadow-lg shadow-primary/40 ring-2 ring-background leading-none">
+                      {chat.unread > 9 ? "9+" : chat.unread}
+                    </span>
+                  )}
                 </div>
                 <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors truncate max-w-[52px]">
                   {chat.user.name.split(" ")[0]}
@@ -315,16 +354,49 @@ export default function ChatSidebar({ chats, activeChatId, onSelectChat, onOpenS
 
       {/* Chat list */}
       <div className="flex-1 overflow-y-auto scrollbar-thin py-1">
-        {tabFiltered.length === 0 ? (
+        {search ? (
+          // Show backend search results
+          isSearching ? (
+            <div className="flex items-center justify-center h-20 text-muted-foreground text-sm">
+              <div className="h-4 w-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin mr-2" />
+              Searching…
+            </div>
+          ) : searchResults.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 text-muted-foreground text-sm gap-2">
+              <Search className="h-8 w-8 text-muted-foreground/40" />
+              <p>No users found</p>
+            </div>
+          ) : (
+            <>
+              <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">People</p>
+              {searchResults.map((u: any) => {
+                const id = u._id || u.id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      onAddChat?.({ ...u, id });
+                      onSelectChat(id);
+                      setSearch("");
+                    }}
+                    className="w-full flex items-center gap-4 px-5 py-4 text-left transition-all duration-300 hover:bg-accent/40 border-b border-border/30 last:border-transparent"
+                  >
+                    <UserAvatar name={u.name} online={u.online} size="lg" profilePicture={u.profilePicture} />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-[15px] text-foreground truncate">{u.name}</p>
+                      <p className="text-[13px] text-muted-foreground truncate">{u.bio || u.email || ""}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </>
+          )
+        ) : tabFiltered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-muted-foreground text-sm gap-2 animate-fade-in">
-            <Search className="h-8 w-8 text-muted-foreground/40" />
-            <p>No conversations found</p>
+            <MessageCircle className="h-8 w-8 text-muted-foreground/40" />
+            <p>No conversations yet</p>
+            <p className="text-xs text-muted-foreground/50">Search for someone to start chatting</p>
           </div>
-        ) : search ? (
-          <>
-            <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Results</p>
-            {tabFiltered.map((chat, i) => renderChatItem(chat, i))}
-          </>
         ) : (
           <>
             {pinnedChats.length > 0 && activeTab === "all" && (

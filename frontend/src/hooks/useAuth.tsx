@@ -4,6 +4,7 @@ import { socket } from '../lib/socket';
 
 interface AuthContextType {
   user: User | null;
+  loading: boolean;
   login: (userData: User, token: string) => void;
   logout: () => void;
   updateUser: (userData: Partial<User>) => void;
@@ -12,10 +13,44 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    const storedUser = sessionStorage.getItem('user');
-    return storedUser ? JSON.parse(storedUser) : null;
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true); // Start as loading until token is verified
+
+  // On mount: verify token against backend. If invalid, clear session.
+  useEffect(() => {
+    const verifyToken = async () => {
+      const token = sessionStorage.getItem('token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch('http://localhost:5001/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error('Invalid token');
+        const userData = await res.json();
+        const normalizedUser: User = {
+          ...userData,
+          avatar: userData.avatar ?? userData.profilePicture ?? '',
+          favorites: userData.favorites ?? [],
+          archived: userData.archived ?? [],
+          pinned: userData.pinned ?? [],
+          chatBackgrounds: userData.chatBackgrounds ?? {},
+          settings: userData.settings ?? { theme: 'dark', textSize: 16, disappearTime: 0 },
+        };
+        setUser(normalizedUser);
+      } catch {
+        // Token invalid or expired — clear everything
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    verifyToken();
+  }, []);
 
   // Apply theme from user settings
   useEffect(() => {
@@ -69,7 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
