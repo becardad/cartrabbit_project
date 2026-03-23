@@ -1,0 +1,11 @@
+# Project-wide ignore
+node_modules/
+backend/node_modules/
+group-harmony-hub-main/node_modules/
+.env
+backend/.env
+group-harmony-hub-main/.env
+dist/
+group-harmony-hub-main/dist/
+.DS_Store
+*.log
