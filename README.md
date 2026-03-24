@@ -1,47 +1,60 @@
+### Deployment Link
+https://text-nest-frontend.vercel.app/
+
 # TextNest - Full Stack WhatsApp Clone
 
-TextNest is a professional, feature-rich WhatsApp Web clone built with React, Node.js, and MongoDB. It supports real-time messaging, group chats, AI assistance, and more.
-
-## Project Structure
-
-- **[frontend/](file:///c:/Users/sabarish%20V/Downloads/TextNest/frontend/)**: React + Vite application.
-- **[backend/](file:///c:/Users/sabarish%20V/Downloads/TextNest/backend/)**: Node.js + Express + Socket.IO server.
-
-## Quick Start
-
-### 1. Prerequisites
-- Node.js (v16+)
-- MongoDB (Local or Atlas)
-
-### 2. Setup
-
-#### Backend
-```bash
-cd backend
-npm install
-npm start
-```
-*Note: Ensure your `.env` file in the `backend` directory is configured.*
-
-#### Frontend
-```bash
-cd frontend
-npm install
-npm run dev
-```
+This is a simplified full-stack clone of WhatsApp Web (TextNest), built using React (Vite) for the frontend and Node.js/Express for the backend. It features real-time messaging, user authentication, and data persistence using MongoDB.
 
 ## Features
-- ✅ Real-time Messaging (Socket.IO)
-- ✅ User Authentication (JWT)
-- ✅ Group Chats
-- ✅ AI Assistance Chat
-- ✅ Media Sharing (Images, Videos, Docs)
-- ✅ Voice Messages
-- ✅ Message Reactions & Editing
-- ✅ Online Status & Typing Indicators
+- **User Authentication**: Secure Signup and Login using JWT.
+- **Real-time Messaging**: Instant message delivery using Socket.IO.
+- **Group Chats**: Create and participate in group conversations.
+- **AI Assistance**: Integrated AI chat for assistance.
+- **Media Support**: Send and view images, videos, and documents.
+- **Voice Notes**: Record and send voice messages.
+- **Message Actions**: React to, edit, delete, and star messages.
+- **UI/UX**: Responsive, two-panel layout with dark mode and smooth animations.
+- **Real-time Indicators**: Online status and typing indicators.
+- **View-Once Support**: Support for view-once media items.
 
-## Deployment
-The frontend is deployed at: [https://text-nest-frontend.vercel.app/](https://text-nest-frontend.vercel.app/)
+## Technology Stack
+- **Frontend**: React.js, React Router, Vite, Axios, Socket.io-client, Tailwind CSS, Shadcn UI
+- **Backend**: Node.js, Express, Socket.IO, Mongoose (MongoDB), JSON Web Tokens (JWT), Bcrypt
 
----
-Created for the Full Stack Developer Task.
+## Local Setup Instructions
+
+### 1. Backend Setup
+1. Open a terminal and navigate to the `backend` folder:
+   ```bash
+   cd backend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Environment Variables: 
+   The backend reads a `.env` file. A default `.env` with the following variables is expected:
+   ```env
+   MONGODB_URI=mongodb://localhost:27017/whatsapp-clone
+   PORT=5001
+   JWT_SECRET=supersecretpassword123
+   ```
+4. Start the server:
+   ```bash
+   node server.js
+   ```
+
+### 2. Frontend Setup
+1. Open a new terminal and navigate to the `frontend` folder:
+   ```bash
+   cd frontend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the Vite development server:
+   ```bash
+   npm run dev
+   ```
+4. Access the application at [http://localhost:5173/](http://localhost:5173/) (or the port shown in your terminal). Open it in two separate browsers to test messaging!
