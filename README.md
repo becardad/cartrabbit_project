@@ -9,6 +9,8 @@ This is a simplified full-stack clone of WhatsApp Web (TextNest), built using Re
 - **User Authentication**: Secure Signup and Login using JWT.
 - **Real-time Messaging**: Instant message delivery using Socket.IO.
 - **Group Chats**: Create and participate in group conversations.
+- **Video & Audio Calling**: Integrated WebRTC-based calling system.
+- **Archive Chats**: Keep your chat list clean by archiving conversations.
 - **AI Assistance**: Integrated AI chat for assistance.
 - **Media Support**: Send and view images, videos, and documents.
 - **Voice Notes**: Record and send voice messages.
