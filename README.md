@@ -5,19 +5,34 @@ https://text-nest-frontend.vercel.app/
 
 This is a simplified full-stack clone of WhatsApp Web (TextNest), built using React (Vite) for the frontend and Node.js/Express for the backend. It features real-time messaging, user authentication, and data persistence using MongoDB.
 
-## Features
-- **User Authentication**: Secure Signup and Login using JWT.
-- **Real-time Messaging**: Instant message delivery using Socket.IO.
-- **Group Chats**: Create and participate in group conversations.
-- **Video & Audio Calling**: Integrated WebRTC-based calling system.
-- **Archive Chats**: Keep your chat list clean by archiving conversations.
-- **AI Assistance**: Integrated AI chat for assistance.
-- **Media Support**: Send and view images, videos, and documents.
-- **Voice Notes**: Record and send voice messages.
-- **Message Actions**: React to, edit, delete, and star messages.
-- **UI/UX**: Responsive, two-panel layout with dark mode and smooth animations.
-- **Real-time Indicators**: Online status and typing indicators.
-- **View-Once Support**: Support for view-once media items.
+## Key Features
+
+### 💬 Messaging & Communication
+- **Real-time Chat**: Instant messaging powered by Socket.IO for seamless communication.
+- **Group Conversations**: Create and manage group chats with multiple members.
+- **Video & Audio Calling**: High-quality WebRTC-based calling system with signaling.
+- **Voice Notes**: Integrated recorder to send and play voice messages.
+- **AI Assistant**: Specialized chat interface powered by Google Gemini AI for instant help and conversation.
+
+### 🔐 Security & Privacy
+- **User Authentication**: Secure signup and login system using JWT (JSON Web Tokens) and Bcrypt hashing.
+- **View-Once Media**: Send photos and videos that disappear after being viewed once.
+- **Block System**: Ability to block/unblock users to maintain privacy.
+
+### 🛠️ Advanced Chat Tools
+- **Message Actions**: React to messages with emojis, edit sent messages, and delete for everyone or just for yourself.
+- **File & Media Sharing**: Support for sharing images, videos, and various document types (PDF, Docs, etc.).
+- **Forward & Reply**: Easily reply to specific messages or forward them to other contacts.
+- **Starred Messages**: Save important messages to a dedicated "Starred" list for quick access.
+- **Search in Chat**: Quickly find specific messages within a conversation.
+- **Export Chat**: Download your chat history as a text file.
+
+### 🎨 Personalization & UX
+- **Custom Wallpapers**: Change chat backgrounds with a variety of colors and patterns.
+- **Status/Stories**: Share updates with contacts that disappear after 24 hours.
+- **Responsive Design**: Modern, glassmorphic UI that works beautifully on desktop and tablet.
+- **Real-time Indicators**: Live "Online" status and "Typing..." indicators for active engagement.
+- **Archive & Pin**: Organize your chat list by pinning important conversations or archiving older ones.
 
 ## Technology Stack
 - **Frontend**: React.js, React Router, Vite, Axios, Socket.io-client, Tailwind CSS, Shadcn UI
