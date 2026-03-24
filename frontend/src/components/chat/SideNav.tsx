@@ -1,9 +1,35 @@
-import { MessageSquare, Phone, Settings, Circle, Star, Archive, Menu } from "lucide-react";
+import { MessageSquare, Phone, CircleDashed, Star, Archive, Settings, User, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import UserAvatar from "./UserAvatar";
+import TextNestLogo from "../TextNestLogo";
 import { useAuth } from "@/hooks/useAuth";
 
-export type NavTab = "chats" | "calls" | "status" | "starred" | "archived" | "settings" | "profile";
+function GeminiNavIcon({ className, strokeWidth: _sw, ...props }: React.SVGProps<SVGSVGElement> & { strokeWidth?: number }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <defs>
+        <linearGradient id="gemGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#4285F4" />
+          <stop offset="50%" stopColor="#EA4335" />
+          <stop offset="100%" stopColor="#FBBC05" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M12 2C12 2 9.5 8.5 2 12C9.5 15.5 12 22 12 22C12 22 14.5 15.5 22 12C14.5 8.5 12 2 12 2Z"
+        fill="url(#gemGrad)"
+      />
+    </svg>
+  );
+}
+
+
+export type NavTab = "chats" | "calls" | "status" | "gemini" | "starred" | "archived" | "settings" | "profile";
 
 interface SideNavProps {
   activeTab: NavTab;
@@ -61,11 +87,24 @@ export default function SideNav({ activeTab, onTabChange, unreadCount }: SideNav
 
   return (
     <div className="w-[64px] h-full flex flex-col items-center py-2 bg-background border-r border-border/20 shrink-0 select-none z-30 transition-colors duration-300">
-      {/* Menu Icon at the very top */}
-      <div className="w-full flex items-center justify-center mb-2">
-        <button className="p-3 text-muted-foreground hover:text-foreground transition-colors">
-          <Menu className="h-6 w-6" strokeWidth={1.5} />
-        </button>
+      {/* Brand Branding Section at the top left */}
+      <div className="w-full flex flex-col items-center gap-0 mb-6 pt-2 shrink-0">
+        <div className="relative group cursor-pointer transition-transform hover:scale-110 active:scale-95 duration-500">
+          <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+          <TextNestLogo size={36} birdVariant="loop" className="relative drop-shadow-lg" />
+        </div>
+        <h1 
+          className="text-[10px] font-[900] tracking-[0.04em] leading-none select-none pointer-events-none mt-[-5px]"
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            background: "linear-gradient(120deg, hsl(var(--primary)), hsl(28,80%,68%))",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            filter: "drop-shadow(0 0 8px hsl(var(--primary)/0.3))",
+          }}
+        >
+          TextNest
+        </h1>
       </div>
 
       {/* Top Group */}
@@ -75,7 +114,7 @@ export default function SideNav({ activeTab, onTabChange, unreadCount }: SideNav
           label="Chats" 
           active={activeTab === "chats"} 
           onClick={() => onTabChange("chats")}
-          badge={activeTab === "chats" ? undefined : (unreadCount || undefined)} 
+          badge={unreadCount && unreadCount > 0 ? unreadCount : undefined} 
         />
         <NavItem 
           icon={Phone} 
@@ -84,10 +123,16 @@ export default function SideNav({ activeTab, onTabChange, unreadCount }: SideNav
           onClick={() => onTabChange("calls")}
         />
         <NavItem 
-          icon={Circle} 
+          icon={CircleDashed} 
           label="Status" 
           active={activeTab === "status"} 
           onClick={() => onTabChange("status")}
+        />
+        <NavItem
+          icon={Sparkles}
+          label="Gemini AI"
+          active={activeTab === "gemini"}
+          onClick={() => onTabChange("gemini")}
         />
       </div>
 

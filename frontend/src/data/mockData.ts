@@ -11,6 +11,7 @@ export interface User {
   archived?: string[];
   pinned?: string[];
   chatBackgrounds?: Record<string, string>;
+  admin?: string;
   settings?: {
     theme: 'light' | 'dark';
     textSize: number;
@@ -42,6 +43,7 @@ export interface Message {
   deleted?: boolean;
   fileName?: string;
   fileSize?: string;
+  isForwarded?: boolean;
   starredBy?: string[];
 }
 
